@@ -1,4 +1,5 @@
 const User = require("../models/userModel");
+const Note = require("../models/noteModel");
 
 //@desc get all users
 //@access PUBLIC
@@ -6,11 +7,10 @@ const User = require("../models/userModel");
 const getAll = async (req, res) => {
   try {
     const users = await User.find({}).select("-password");
-    if (users) {
-      return res.status(200).json(users);
-    } else {
+    if (!users?.length) {
       return res.status(404).json({ message: "No users found !!" });
     }
+    res.status(200).json(users);
   } catch (error) {
     res.status(500).json({ message: "Sommething went wrong ...." });
   }
@@ -67,10 +67,24 @@ const registerUser = async (req, res) => {
 //@ DELETE /users/:id
 const deleteUser = async (req, res) => {
   try {
-    const existingUser = await User.findById(req.params.id);
+    const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({ message: "User ID not provided !!" });
+    }
+
+    // check if user has note(s)
+    const hasNote = await Note.findOne({ userId: id }).lean().exec();
+    if (hasNote) {
+      return res.status(401).json({
+        message: "This user has assigned note(s), it can't be deleted !!",
+      });
+    }
+
+    const existingUser = await User.findById(id).exec();
     if (existingUser) {
-      await User.findOneAndDelete({ _id: req.params.id });
-      res.status(200).json({ message: "User deleted succesfully!!" });
+      const result = await User.findOneAndDelete({ _id: req.params.id });
+      const reply = `Username ${result.username} with ID : ${result._id} deleted succssfully`;
+      res.status(200).json({ message: "User deleted succesfully!!", reply });
     } else {
       res.status(404).json({ message: "User not found!!" });
     }
