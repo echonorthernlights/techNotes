@@ -2,7 +2,7 @@ const User = require("../models/userModel");
 
 //@desc get all users
 //@access PUBLIC
-//@ GET /users
+//@route GET /users
 const getAll = async (req, res) => {
   try {
     const users = await User.find({}).select("-password");
@@ -18,7 +18,7 @@ const getAll = async (req, res) => {
 
 //@desc get user by id
 //@access PUBLIC
-//@ GET /users/:id
+//@route GET /users/:id
 const getById = async (req, res) => {
   try {
     const user = await User.findById(req.params.id).select("-password");
@@ -37,16 +37,24 @@ const getById = async (req, res) => {
 //@ POST /users
 const registerUser = async (req, res) => {
   try {
-    const existingUser = await User.findOne({
-      username: req.body.username,
-    }).select("-password");
-    if (existingUser) {
-      return res.status(400).json({ message: "User already exists !!" });
+    const { username, password, roles } = req.body;
+    console.log(username, password, roles);
+
+    if (!username || !password || !Array.isArray(roles) || !roles.length) {
+      return res.status(400).json({ message: "All fields are required !!" });
     }
+    const existingUser = await User.findOne({ username }).lean().exec();
+
+    if (existingUser) {
+      return res.status(409).json({ message: "User already exists !!" });
+    }
+
     let newUser = {
-      username: req.body.username,
-      password: req.body.password,
+      username,
+      roles,
+      password,
     };
+
     newUser = await User.create(newUser);
     res.status(201).json(newUser);
   } catch (error) {
@@ -76,17 +84,39 @@ const deleteUser = async (req, res) => {
 //@ PUT /users/:id
 const updateUser = async (req, res) => {
   try {
-    const existingUser = await User.findById(req.params.id);
-    if (existingUser) {
-      existingUser.username = req.body.username;
-      existingUser.password = req.body.password;
-      const updatedUser = await existingUser.save();
-      res
-        .status(200)
-        .json({ message: "User updated succesfully!!", updateUser });
-    } else {
-      res.status(404).json({ message: "User not found!!" });
+    const { username, password, roles, active } = req.body;
+    const { id } = req.params;
+
+    if (
+      !id ||
+      !username ||
+      !password ||
+      !Array.isArray(roles) ||
+      !roles.length ||
+      typeof active !== "boolean"
+    ) {
+      return res.status(400).json({ message: "All fields are required" });
     }
+
+    const existingUser = await User.findById(id).exec();
+
+    if (!existingUser) {
+      return res.status(404).json({ message: "User not found !!" });
+    }
+    const duplicate = await User.findOne({ username }).lean().exec();
+
+    if (duplicate && duplicate?._id.toString() !== id) {
+      return res.status(409).json({ message: "Duplicate username !!" });
+    }
+
+    existingUser.username = username;
+    existingUser.password = password;
+    existingUser.roles = roles;
+
+    const updatedUser = await existingUser.save();
+    res
+      .status(200)
+      .json({ message: "User updated succesfully!!", updatedUser });
   } catch (error) {
     res.status(500).json({ message: "Sommething went wrong ...." });
   }
