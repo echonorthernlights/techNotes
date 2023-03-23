@@ -90,7 +90,6 @@ const updateUser = async (req, res) => {
     if (
       !id ||
       !username ||
-      !password ||
       !Array.isArray(roles) ||
       !roles.length ||
       typeof active !== "boolean"
@@ -110,8 +109,11 @@ const updateUser = async (req, res) => {
     }
 
     existingUser.username = username;
-    existingUser.password = password;
     existingUser.roles = roles;
+    existingUser.active = active;
+    if (password) {
+      existingUser.password = password;
+    }
 
     const updatedUser = await existingUser.save();
     res
